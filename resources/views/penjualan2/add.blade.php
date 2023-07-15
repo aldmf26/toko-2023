@@ -43,10 +43,10 @@
                                         name="tgl">
                                 </td>
                                 <td>
-                                    <input readonly value="PAGL-{{ $no_nota }}" type="text" required class="form-control">
+                                    <input readonly value="PENUM-{{ $no_nota }}" type="text" required class="form-control">
                                     <input value="{{ $no_nota }}" type="hidden" required class="form-control" name="no_nota">
                                 </td>
-                                <td>
+                                {{-- <td>
                                     <input type="text" required class="form-control" name="nota_manual">
                                 </td>
                                 <td>
@@ -60,7 +60,7 @@
                                 </td>
                                 <td>
                                     <input type="text" name="driver" class="form-control">
-                                </td>
+                                </td> --}}
                                 <td>
                                     <input type="text" name="ket" class="form-control">
                                 </td>

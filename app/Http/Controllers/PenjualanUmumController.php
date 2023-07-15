@@ -125,10 +125,10 @@ class PenjualanUmumController extends Controller
 
         $dataK = [
             'tgl' => $r->tgl,
-            'no_nota' => 'PAGL-' . $r->no_nota,
+            'no_nota' => 'PENUM-' . $r->no_nota,
             'id_akun' => $this->akunPenjualan,
             'id_buku' => '10',
-            'ket' => 'PAGL-' . $r->nota_manual,
+            'ket' => 'PENUM-' . $r->nota_manual,
             'no_urut' => $akun2->inisial . '-' . $urutan2,
             'urutan' => $urutan2,
             'kredit' => $ttlDebit,
@@ -149,7 +149,7 @@ class PenjualanUmumController extends Controller
                 'tgl' => $r->tgl,
                 'id_akun' => $id_akun,
                 'id_buku' => 10,
-                'no_nota' => 'PAGL-' . $r->no_nota,
+                'no_nota' => 'PENUM-' . $r->no_nota,
                 'ket' => "Penjualan $nm_customer",
                 'debit' => $r->debit[$i] ?? 0,
                 'kredit' => $r->kredit[$i] ?? 0,
@@ -161,7 +161,7 @@ class PenjualanUmumController extends Controller
             if ($id_akun == $this->akunPiutangDagang) {
                 DB::table('invoice_agl')->insert([
                     'no_penjualan' => $r->nota_manual,
-                    'no_nota' => 'PAGL-' . $r->no_nota,
+                    'no_nota' => 'PENUM-' . $r->no_nota,
                     'tgl' => $r->tgl,
                     'ket' => $r->ket,
                     'total_rp' => $ttlDebit,
@@ -174,11 +174,11 @@ class PenjualanUmumController extends Controller
         for ($i = 0; $i < count($r->id_produk); $i++) {
             DB::table('penjualan_agl')->insert([
                 'urutan' => $r->no_nota,
-                'nota_manual' => $r->nota_manual,
+                'nota_manual' => '1',
                 'tgl' => $r->tgl,
-                'kode' => 'PAGL',
-                'id_customer' => $r->id_customer,
-                'driver' => $r->driver,
+                'kode' => 'PENUM',
+                'id_customer' => '1',
+                'driver' => '1',
                 'id_produk' => $r->id_produk[$i],
                 'qty' => $r->qty[$i],
                 'rp_satuan' => $r->rp_satuan[$i],
@@ -204,7 +204,7 @@ class PenjualanUmumController extends Controller
                 'debit' => 0,
                 'kredit' => $r->qty[$i],
                 'rp_satuan' => 0,
-                'ket' => 'PAGL-' . $r->no_nota,
+                'ket' => 'PENUM-' . $r->no_nota,
                 'kategori_id' => 3,
                 'departemen_id' => 1,
                 'admin' => auth()->user()->name,
@@ -228,7 +228,7 @@ class PenjualanUmumController extends Controller
                 ->where('urutan', $r->urutan)
                 ->get(),
             'getPenjualan' => $penjualan,
-            'getPembayaran' => DB::table('jurnal')->where([['no_nota', 'PAGL-' . $r->urutan], ['id_akun', '!=', $this->akunPenjualan]])->get(),
+            'getPembayaran' => DB::table('jurnal')->where([['no_nota', 'PENUM-' . $r->urutan], ['id_akun', '!=', $this->akunPenjualan]])->get(),
             'akun' => Akun::all(),
             'no_nota' => $penjualan->urutan
         ];
@@ -237,14 +237,14 @@ class PenjualanUmumController extends Controller
 
     public function update(Request $r)
     {
-        $cek = DB::table('invoice_agl')->where('no_nota', 'PAGL-' . $r->no_nota)->first();
+        $cek = DB::table('invoice_agl')->where('no_nota', 'PENUM-' . $r->no_nota)->first();
         if ($cek) {
             return redirect()->route('penjualan2.index')->with('error', 'Gagal Edit Karena nota Piutang Sudah PAID !');
         }
         $ttlDebit = 0;
         $getProduk = DB::table('tb_stok_produk')->where('id_produk', 12)->orderBy('id_stok_produk', 'DESC')->first();
-        DB::table('tb_stok_produk')->where('no_nota', 'PAGL-' . $r->no_nota)->delete();
-        DB::table('jurnal')->where('no_nota', 'PAGL-' . $r->no_nota)->delete();
+        DB::table('tb_stok_produk')->where('no_nota', 'PENUM-' . $r->no_nota)->delete();
+        DB::table('jurnal')->where('no_nota', 'PENUM-' . $r->no_nota)->delete();
         DB::table('penjualan_agl')->where('urutan', $r->no_nota)->delete();
 
 
@@ -254,9 +254,9 @@ class PenjualanUmumController extends Controller
 
         $dataK = [
             'tgl' => $r->tgl,
-            'no_nota' => 'PAGL-' . $r->no_nota,
+            'no_nota' => 'PENUM-' . $r->no_nota,
             'id_akun' => $this->akunPenjualan,
-            'ket' => 'PAGL-' . $r->nota_manual,
+            'ket' => 'PENUM-' . $r->nota_manual,
             'no_urut' => $akun2->inisial . '-' . $urutan2,
             'urutan' => $urutan2,
             'kredit' => $ttlDebit,
@@ -277,8 +277,8 @@ class PenjualanUmumController extends Controller
             Jurnal::create([
                 'tgl' => $r->tgl,
                 'id_akun' => $id_akun,
-                'no_nota' => 'PAGL-' . $r->no_nota,
-                'ket' => 'PAGL-' . $r->no_nota,
+                'no_nota' => 'PENUM-' . $r->no_nota,
+                'ket' => 'PENUM-' . $r->no_nota,
                 'debit' => $r->debit[$i] ?? 0,
                 'kredit' => $r->kredit[$i] ?? 0,
                 'no_urut' => $akun->inisial . '-' . $urutan,
@@ -288,7 +288,7 @@ class PenjualanUmumController extends Controller
             if ($id_akun == $this->akunPiutangDagang) {
                 DB::table('invoice_agl')->insert([
                     'no_penjualan' => $r->nota_manual,
-                    'no_nota' => 'PAGL-' . $r->no_nota,
+                    'no_nota' => 'PENUM-' . $r->no_nota,
                     'tgl' => $r->tgl,
                     'ket' => $r->ket,
                     'total_rp' => $ttlDebit,
@@ -303,7 +303,7 @@ class PenjualanUmumController extends Controller
                 'urutan' => $r->no_nota,
                 'nota_manual' => $r->nota_manual,
                 'tgl' => $r->tgl,
-                'kode' => 'PAGL',
+                'kode' => 'PENUM',
                 'id_customer' => $r->id_customer,
                 'driver' => $r->driver,
                 'id_produk' => $r->id_produk[$i],
@@ -330,7 +330,7 @@ class PenjualanUmumController extends Controller
                 'debit' => 0,
                 'kredit' => $r->qty[$i],
                 'rp_satuan' => 0,
-                'ket' => 'PAGL-' . $r->no_nota,
+                'ket' => 'PENUM-' . $r->no_nota,
                 'gudang_id' => $getProduk->gudang_id,
                 'kategori_id' => 3,
                 'departemen_id' => 1,
@@ -375,8 +375,8 @@ class PenjualanUmumController extends Controller
 
     public function delete(Request $r)
     {
-        DB::table('tb_stok_produk')->where('no_nota', 'PAGL-' . $r->urutan)->delete();
-        DB::table('jurnal')->where('no_nota', 'PAGL-' . $r->urutan)->delete();
+        DB::table('tb_stok_produk')->where('no_nota', 'PENUM-' . $r->urutan)->delete();
+        DB::table('jurnal')->where('no_nota', 'PENUM-' . $r->urutan)->delete();
         DB::table('penjualan_agl')->where('urutan', $r->urutan)->delete();
 
         return redirect()->route('penjualan2.index', ['period' => 'costume', 'tgl1' => $r->tgl1, 'tgl2' => $r->tgl2, 'id_proyek' => 0])->with('sukses', 'Data Berhasil Dihapus');
