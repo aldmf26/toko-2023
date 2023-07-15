@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardKandangController;
 use App\Http\Controllers\DataKandangController;
 use App\Http\Controllers\JualController;
 use App\Http\Controllers\JurnalPenyesuaianController;
+use App\Http\Controllers\ObatPakanController;
 use App\Http\Controllers\OpnameController;
 use App\Http\Controllers\PenjualanUmumController;
 use App\Http\Controllers\PenutupController;
@@ -304,16 +305,19 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
             Route::get('/', 'index')->name('index');
             Route::post('/tambah_telur', 'tambah_telur')->name('tambah_telur');
+            Route::post('/export_telur', 'export_telur')->name('export_telur');
             Route::get('/load_telur/{id_kandang}', 'load_telur')->name('load_telur');
+            Route::get('/kandang_selesai/{id_kandang}', 'kandang_selesai')->name('kandang_selesai');
             Route::get('/load_populasi/{id_kandang}', 'load_populasi')->name('load_populasi');
             Route::post('/tambah_populasi', 'tambah_populasi')->name('tambah_populasi');
             Route::post('/tambah_karung', 'tambah_karung')->name('tambah_karung');
-            
-            
+
             // perencanaan
             Route::get('/load_perencanaan/{id_kandang}', 'load_perencanaan')->name('load_perencanaan');
             Route::post('/tambah_perencanaan', 'tambah_perencanaan')->name('tambah_perencanaan');
 
+            Route::post('/daily_layer', 'daily_layer')->name('daily_layer');
+            Route::post('/week_layer', 'week_layer')->name('week_layer');
             Route::get('/load_pakan_perencanaan', 'load_pakan_perencanaan')->name('load_pakan_perencanaan');
             Route::get('/tbh_pakan', 'tbh_pakan')->name('tbh_pakan');
             Route::get('/get_stok_pakan', 'get_stok_pakan')->name('get_stok_pakan');
@@ -332,15 +336,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/load_obat_ayam', 'load_obat_ayam')->name('load_obat_ayam');
             Route::get('/save_tambah_obat_ayam', 'save_tambah_obat_ayam')->name('save_tambah_obat_ayam');
             Route::get('/get_stok_obat_ayam', 'get_stok_obat_ayam')->name('get_stok_obat_ayam');
-            
+
             // history perencanaan
             Route::get('/load_detail_perencanaan/{id_kandang}', 'load_detail_perencanaan')->name('load_detail_perencanaan');
             Route::get('/viewHistoryPerencanaan', 'viewHistoryPerencanaan')->name('viewHistoryPerencanaan');
             Route::get('/viewHistoryEditPerencanaan', 'viewHistoryEditPerencanaan')->name('viewHistoryEditPerencanaan');
             Route::post('/edit_perencanaan', 'edit_perencanaan')->name('edit_perencanaan');
             Route::get('/hasilLayer', 'hasilLayer')->name('hasilLayer');
-            
-
 
             // penjualan martadah
             Route::get('/penjualan_telur', 'penjualan_telur')->name('penjualan_telur');
@@ -364,5 +366,22 @@ Route::middleware('auth')->group(function () {
             Route::get('/load_detail_nota/{urutan}', 'load_detail_nota')->name('load_detail_nota');
             Route::post('/update_penjualan', 'update_penjualan')->name('update_penjualan');
             Route::post('/save_penjualan_umum', 'save_penjualan_umum')->name('save_penjualan_umum');
+        });
+
+    Route::controller(ObatPakanController::class)
+        ->prefix('dashboard_kandang')
+        ->name('dashboard_kandang.')
+        ->group(function () {
+            Route::get('/tambah_pakan_stok', 'tambah_pakan_stok')->name('tambah_pakan_stok');
+            Route::get('/load_stok_pakan', 'load_stok_pakan')->name('load_stok_pakan');
+            Route::get('/tambah_vitamin', 'tambah_vitamin')->name('tambah_vitamin');
+            Route::get('/tambah_baris_stok', 'tambah_baris_stok')->name('tambah_baris_stok');
+            Route::get('/tambah_baris_stok_vitamin', 'tambah_baris_stok_vitamin')->name('tambah_baris_stok_vitamin');
+            Route::get('/opname_pakan', 'opname_pakan')->name('opname_pakan');
+            Route::get('/opnme_vitamin', 'opnme_vitamin')->name('opnme_vitamin');
+            Route::get('/history_stok', 'history_stok')->name('history_stok');
+            Route::post('/save_opname_pakan', 'save_opname_pakan')->name('save_opname_pakan');
+            Route::post('/save_tambah_pakan_stok', 'save_tambah_pakan')->name('save_tambah_pakan_stok');
+            Route::post('/save_vaksin', 'save_vaksin')->name('save_vaksin');
         });
 });

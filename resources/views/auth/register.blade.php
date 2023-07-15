@@ -68,7 +68,7 @@
 
                 <form class="login100-form validate-form" action="{{ route('register_nanda') }}" method="post">
                     <center>
-                        <img src="/assets/login/img/logo_agrika.png" alt="" width="80px">
+                        <img src="https://agrilaras.putrirembulan.com/assets/img/logo.png" alt="" width="80px">
                     </center>
                     @csrf
                     <span class="login100-form-title p-b-43">

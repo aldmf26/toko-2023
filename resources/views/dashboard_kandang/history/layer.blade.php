@@ -18,6 +18,7 @@
                     <th width="1%" class="dhead text-center">
                         {{ ucwords(str_replace('telur', '', strtolower($d->nm_telur))) }}</th>
                 @endforeach
+
                 <th width="1%" class="dhead text-center">Ttl Pcs</th>
                 <th width="1%" class="dhead text-center">Ttl Kg</th>
                 <th width="1%" class="dhead text-center">Kg</th>

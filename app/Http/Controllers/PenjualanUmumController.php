@@ -115,7 +115,6 @@ class PenjualanUmumController extends Controller
     {
         $nm_customer = DB::table('customer')->where('id_customer', $r->id_customer)->first()->nm_customer;
         $ttlDebit = 0;
-        $getProduk = DB::table('tb_stok_produk')->where('id_produk', 12)->orderBy('id_stok_produk', 'DESC')->first();
 
         for ($i = 0; $i < count($r->akun_pembayaran); $i++) {
             $ttlDebit += $r->debit[$i] ?? 0 - $r->kredit[$i] ?? 0;
@@ -155,7 +154,7 @@ class PenjualanUmumController extends Controller
                 'debit' => $r->debit[$i] ?? 0,
                 'kredit' => $r->kredit[$i] ?? 0,
                 'no_urut' => $akun->inisial . '-' . $urutan,
-                'urutan' => $r->urutan,
+                'urutan' => $urutan,
                 'admin' => auth()->user()->name,
             ]);
 
@@ -188,8 +187,9 @@ class PenjualanUmumController extends Controller
                 'id_jurnal' => $penjualan->id,
                 'admin' => auth()->user()->name
             ]);
+            $getProduk = DB::table('tb_stok_produk')->where('id_produk', $r->id_produk[$i])->orderBy('id_stok_produk', 'DESC')->first();
             $notaProduk = buatNota('tb_stok_produk', 'urutan');
-            $jml_sebelumnya = $getProduk->jml_sebelumnya ?? 0;
+            $jml_sebelumnya = empty($getProduk) ? 0 : $getProduk->jml_sebelumnya ?? 0;
             $jml_sesudahnya = $jml_sebelumnya - $r->qty[$i];
 
             DB::table("tb_stok_produk")->insert([
@@ -205,7 +205,6 @@ class PenjualanUmumController extends Controller
                 'kredit' => $r->qty[$i],
                 'rp_satuan' => 0,
                 'ket' => 'PAGL-' . $r->no_nota,
-                'gudang_id' => $getProduk->gudang_id,
                 'kategori_id' => 3,
                 'departemen_id' => 1,
                 'admin' => auth()->user()->name,

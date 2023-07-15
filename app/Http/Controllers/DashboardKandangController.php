@@ -6,6 +6,8 @@ use App\Models\Gudang;
 use App\Models\Produk;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 
 class DashboardKandangController extends Controller
 {
@@ -45,13 +47,24 @@ class DashboardKandangController extends Controller
 
     public function index()
     {
+        $tgl = date('Y-m-d');
         $data = [
             'title' => 'Dashboard Kandang',
-            'kandang' => DB::table('kandang')->get(),
+            'kandang' => DB::table('kandang as a')
+                ->select(DB::raw("FLOOR(DATEDIFF('$tgl', a.chick_in) / 7) AS mgg"), 'a.*')
+                ->where('selesai', 'T')
+                ->get(),
             'telur' => DB::table('telur_produk')->get(),
+            'produkPakan' => DB::table('tb_produk_perencanaan')->where('kategori', 'pakan')->get(),
             'produk' => $this->produk
         ];
         return view('dashboard_kandang.index', $data);
+    }
+
+    public function kandang_selesai($id_kandang)
+    {
+        DB::table('kandang')->where('id_kandang', $id_kandang)->update(['selesai' => 'Y']);
+        return redirect()->route('dashboard_kandang.index')->with('sukses', 'Kandang Berhasil Di selesaikan');
     }
 
     public function tambah_telur(Request $r)
@@ -560,6 +573,7 @@ class DashboardKandangController extends Controller
 
     public function load_perencanaan($id_kandang)
     {
+
         $pop = DB::selectOne("SELECT sum(a.mati + a.jual) as pop,b.stok_awal FROM populasi as a
                             LEFT JOIN kandang as b ON a.id_kandang = b.id_kandang
                             WHERE a.id_kandang = '$id_kandang';");
@@ -624,7 +638,7 @@ class DashboardKandangController extends Controller
 
     public function get_stok_pakan(Request $r)
     {
-        $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$r->id_pakan'");
+        $stok = DB::selectOne("SELECT sum(pcs - pcs_kredit) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$r->id_pakan' AND h_opname = 'T'");
         echo $stok->stok;
     }
     public function tbh_obatPakan(Request $r)
@@ -725,7 +739,7 @@ class DashboardKandangController extends Controller
         ];
         echo json_encode($data);
     }
-    
+
     public function load_obat_ayam()
     {
         $data = [
@@ -767,6 +781,21 @@ class DashboardKandangController extends Controller
         echo $stok->dosis_satuan;
     }
 
+    public function getHargaSatuan($id_pakan)
+    {
+        return DB::selectOne("SELECT sum(a.total_rp / a.pcs) as rata_rata
+                FROM stok_produk_perencanaan as a 
+                where a.id_pakan = '$id_pakan' and a.pcs != '0' and a.h_opname ='T'
+                group by a.id_pakan;");
+    }
+    public function getNoNota()
+    {
+        $max = DB::table('notas')->latest('nomor_nota')->where('id_buku', '2')->first();
+        $nota_t = empty($max) ? '1000' : $max->nomor_nota + 1;
+        DB::table('notas')->insert(['nomor_nota' => $nota_t, 'id_buku' => '2']);
+        return $nota_t;
+    }
+
     public function tambah_perencanaan(Request $r)
     {
         $tgl = $r->tgl;
@@ -777,8 +806,8 @@ class DashboardKandangController extends Controller
         $kg_karung = $r->kg_karung;
         $kg_karung_sisa = $r->kg_karung_sisa;
         $no_nota = strtoupper(str()->random(5));
-        if(!empty($r->id_pakan)) {
-            for ($i=0; $i < count($r->id_pakan); $i++) { 
+        if (!empty($r->id_pakan)) {
+            for ($i = 0; $i < count($r->id_pakan); $i++) {
                 $dataPakan = [
                     'id_kandang' => $id_kandang,
                     'id_produk_pakan' => $r->id_pakan[$i],
@@ -789,7 +818,7 @@ class DashboardKandangController extends Controller
                     'admin' => auth()->user()->name
                 ];
                 DB::table('tb_pakan_perencanaan')->insert($dataPakan);
-               
+
                 $dataStok = [
                     'id_kandang' => $id_kandang,
                     'id_pakan' => $r->id_pakan[$i],
@@ -797,10 +826,37 @@ class DashboardKandangController extends Controller
                     'pcs' => 0,
                     'total_rp' => 0,
                     'no_nota' => $no_nota,
-                    'pcs_kredit' =>  ($r->gr_pakan[$i] / 1000) - $r->stok[$i],
+                    'pcs_kredit' =>  $r->stok[$i] - ($r->gr_pakan[$i]),
                     'admin' => auth()->user()->name
                 ];
                 DB::table('stok_produk_perencanaan')->insert($dataStok);
+                $id_pakan = $r->id_pakan[$i];
+
+                $hrga = $this->getHargaSatuan($id_pakan);
+                $nota_t = $this->getNoNota();
+                $data = [
+                    'id_akun' => '519',
+                    'id_buku' => '2',
+                    'ket' => "Pengeluaran stok pakan-$no_nota-$id_pakan",
+                    'debit' => $r->gr_pakan[$i] * $hrga->rata_rata,
+                    'kredit' => '0',
+                    'tgl' => $tgl,
+                    'no_nota' => 'JPP-' . $nota_t,
+                    'admin' => auth()->user()->name,
+                ];
+                DB::table('jurnal')->insert($data);
+
+                $data = [
+                    'id_akun' => '519',
+                    'id_buku' => '2',
+                    'ket' => "Pengeluaran stok pakan-$no_nota-$id_pakan",
+                    'kredit' => $r->gr_pakan[$i] * $hrga->rata_rata,
+                    'debit' => '0',
+                    'tgl' => $tgl,
+                    'no_nota' => 'JPP-' . $nota_t,
+                    'admin' => auth()->user()->name,
+                ];
+                DB::table('jurnal')->insert($data);
             }
         }
 
@@ -816,8 +872,8 @@ class DashboardKandangController extends Controller
             DB::table('tb_karung_perencanaan')->insert($dataKarung);
         }
 
-        if(!empty($r->id_obat_pakan)) {
-            for ($i=0; $i < count($r->id_obat_pakan); $i++) { 
+        if (!empty($r->id_obat_pakan[0])) {
+            for ($i = 0; $i < count($r->id_obat_pakan); $i++) {
                 $data1 = [
                     'kategori' => 'obat_pakan',
                     'id_produk' => $r->id_obat_pakan[$i],
@@ -831,7 +887,7 @@ class DashboardKandangController extends Controller
 
                 DB::table('tb_obat_perencanaan')->insert($data1);
                 $id_obat_pakan = $r->id_obat_pakan[$i];
-                $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$id_obat_pakan'");
+                $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$id_obat_pakan' AND h_opname = 'T'");
                 $dataStok = [
                     'id_kandang' => $id_kandang,
                     'id_pakan' => $id_obat_pakan,
@@ -840,15 +896,42 @@ class DashboardKandangController extends Controller
                     'total_rp' => 0,
                     'no_nota' => $no_nota,
                     'id_kandang' => $id_kandang,
-                    'pcs_kredit' =>  ($r->dosis_obat_pakan[$i]  / 1000) - $stok->stok,
+                    'pcs_kredit' => $stok->stok - ($r->dosis_obat_pakan[$i]),
                     'admin' => auth()->user()->name
                 ];
                 DB::table('stok_produk_perencanaan')->insert($dataStok);
+
+                $hrga = $this->getHargaSatuan($id_obat_pakan);
+                $nota_t = $this->getNoNota();
+
+                $data = [
+                    'id_akun' => '520',
+                    'id_buku' => '2',
+                    'ket' => "Pengeluaran stok vitamin-$no_nota-$id_obat_pakan",
+                    'debit' => $r->dosis_obat_pakan[$i] * $hrga->rata_rata,
+                    'kredit' => '0',
+                    'tgl' => $tgl,
+                    'no_nota' => 'JPP-' . $nota_t,
+                    'admin' => auth()->user()->name,
+                ];
+                DB::table('jurnal')->insert($data);
+
+                $data = [
+                    'id_akun' => '520',
+                    'id_buku' => '2',
+                    'ket' => "Pengeluaran stok vitamin-$no_nota-$id_obat_pakan",
+                    'kredit' => $r->dosis_obat_pakan[$i] * $hrga->rata_rata,
+                    'debit' => '0',
+                    'tgl' => $tgl,
+                    'no_nota' => 'JPP-' . $nota_t,
+                    'admin' => auth()->user()->name,
+                ];
+                DB::table('jurnal')->insert($data);
             }
         }
 
-        if(!empty($r->id_obat_air)) {
-            for ($i=0; $i < count($r->id_obat_air); $i++) { 
+        if (!empty($r->id_obat_air[0])) {
+            for ($i = 0; $i < count($r->id_obat_air); $i++) {
                 $data1 = [
                     'kategori' => 'obat_air',
                     'id_produk' => $r->id_obat_air[$i],
@@ -862,11 +945,10 @@ class DashboardKandangController extends Controller
                     'id_kandang' => $id_kandang,
                     'admin' => auth()->user()->name,
                 ];
-
                 DB::table('tb_obat_perencanaan')->insert($data1);
 
                 $id_obat_air = $r->id_obat_air[$i];
-                $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$id_obat_air'");
+                $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$id_obat_air' AND h_opname = 'T'");
                 $dataStok = [
                     'id_kandang' => $id_kandang,
                     'id_pakan' => $id_obat_air,
@@ -874,19 +956,47 @@ class DashboardKandangController extends Controller
                     'pcs' => 0,
                     'total_rp' => 0,
                     'no_nota' => $no_nota,
-                    'pcs_kredit' =>  ($r->dosis_obat_pakan[$i] / 1000) - $stok->stok,
+                    'pcs_kredit' =>  $stok->stok - $r->dosis_obat_pakan[$i],
                     'admin' => auth()->user()->name
                 ];
                 DB::table('stok_produk_perencanaan')->insert($dataStok);
+
+                $hrga = $this->getHargaSatuan($id_obat_air);
+                $nota_t = $this->getNoNota();
+
+                $data = [
+                    'id_akun' => '520',
+                    'id_buku' => '2',
+                    'ket' => "Pengeluaran stok vitamin-$no_nota-$id_obat_air",
+                    'debit' => $r->dosis_obat_pakan[$i] * $hrga->rata_rata,
+                    'kredit' => '0',
+                    'tgl' => $tgl,
+                    'no_nota' => 'JPP-' . $nota_t,
+                    'admin' => auth()->user()->name,
+                ];
+                DB::table('jurnal')->insert($data);
+
+                $data = [
+                    'id_akun' => '520',
+                    'id_buku' => '2',
+                    'ket' => "Pengeluaran stok vitamin-$no_nota-$id_obat_air",
+                    'kredit' => $r->dosis_obat_pakan[$i] * $hrga->rata_rata,
+                    'debit' => '0',
+                    'tgl' => $tgl,
+                    'no_nota' => 'JPP-' . $nota_t,
+                    'admin' => auth()->user()->name,
+                ];
+                DB::table('jurnal')->insert($data);
             }
         }
 
-        if(!empty($r->id_obat_ayam)) {
+        if (!empty($r->id_obat_ayam[0])) {
             $data1 = [
-                'kategori' => 'obat_air',
+                'id_kandang' => $id_kandang,
+                'kategori' => 'obat_ayam',
                 'id_produk' => $r->id_obat_ayam,
-                'dosis' => $r->dosis_obat,
-                'campuran' => $r->campuran_obat,
+                'dosis' => $r->dosis_obat_ayam,
+                'campuran' => 0,
                 'tgl' => $tgl,
                 'no_nota' => $no_nota,
                 'admin' => auth()->user()->name,
@@ -895,7 +1005,7 @@ class DashboardKandangController extends Controller
             DB::table('tb_obat_perencanaan')->insert($data1);
 
             $id_obat_ayam = $r->id_obat_ayam;
-            $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$id_obat_ayam'");
+            $stok = DB::selectOne("SELECT sum(pcs) as stok FROM stok_produk_perencanaan WHERE id_pakan = '$id_obat_ayam' AND h_opname = 'T'");
             $dataStok = [
                 'id_kandang' => $id_kandang,
                 'id_pakan' => $id_obat_ayam,
@@ -903,14 +1013,40 @@ class DashboardKandangController extends Controller
                 'pcs' => 0,
                 'total_rp' => 0,
                 'no_nota' => $no_nota,
-                'pcs_kredit' =>  ($r->dosis_obat_ayam[$i] / 1000) - $stok->stok,
+                'pcs_kredit' =>  $stok->stok - $r->dosis_obat_ayam,
                 'admin' => auth()->user()->name
             ];
             DB::table('stok_produk_perencanaan')->insert($dataStok);
+
+            $hrga = $this->getHargaSatuan($id_obat_ayam);
+            $nota_t = $this->getNoNota();
+
+            $data = [
+                'id_akun' => '520',
+                'id_buku' => '2',
+                'ket' => "Pengeluaran stok vitamin-$no_nota-$id_obat_ayam",
+                'debit' => $r->dosis_obat_ayam * $hrga->rata_rata,
+                'kredit' => '0',
+                'tgl' => $tgl,
+                'no_nota' => 'JPP-' . $nota_t,
+                'admin' => auth()->user()->name,
+            ];
+            DB::table('jurnal')->insert($data);
+
+            $data = [
+                'id_akun' => '520',
+                'id_buku' => '2',
+                'ket' => "Pengeluaran stok vitamin-$no_nota-$id_obat_ayam",
+                'kredit' => $r->dosis_obat_ayam * $hrga->rata_rata,
+                'debit' => '0',
+                'tgl' => $tgl,
+                'no_nota' => 'JPP-' . $nota_t,
+                'admin' => auth()->user()->name,
+            ];
+            DB::table('jurnal')->insert($data);
         }
 
         return redirect()->route('dashboard_kandang.index')->with('sukses', 'Data Perencanaan Berhasil ditambahkan');
-
     }
 
     public function load_detail_perencanaan($id_kandang)
@@ -919,30 +1055,30 @@ class DashboardKandangController extends Controller
             'title' => 'Detail Perencanaan',
             'kandang' => DB::table('kandang')->where('id_kandang', $id_kandang)->first()
         ];
-        return view('dashboard_kandang.modal.detail_perencanaan',$data);
+        return view('dashboard_kandang.modal.detail_perencanaan', $data);
     }
 
     public function getQueryObatPerencanaan($tgl, $id_kandang, $kategori)
     {
         return DB::table('tb_obat_perencanaan as a')
-                    ->select(
-                        'a.tgl',
-                        'b.id_produk',
-                        'b.nm_produk',
-                        'a.waktu',
-                        'a.cara_pemakaian as cara',
-                        'a.id_kandang',
-                        'a.ket',
-                        'a.dosis',
-                        'a.campuran',
-                        'c.nm_satuan as satuan', 
-                        'd.nm_satuan as satuan2'
-                    )
-                    ->leftJoin('tb_produk_perencanaan as b', 'a.id_produk', 'b.id_produk')
-                    ->leftJoin('tb_satuan as c', 'b.dosis_satuan', 'c.id_satuan')
-                    ->leftJoin('tb_satuan as d', 'b.campuran_satuan', 'd.id_satuan')
-                    ->where([['a.tgl', $tgl], ['a.id_kandang', $id_kandang], ['a.kategori', $kategori]])
-                    ->get();
+            ->select(
+                'a.tgl',
+                'b.id_produk',
+                'b.nm_produk',
+                'a.waktu',
+                'a.cara_pemakaian as cara',
+                'a.id_kandang',
+                'a.ket',
+                'a.dosis',
+                'a.campuran',
+                'c.nm_satuan as satuan',
+                'd.nm_satuan as satuan2'
+            )
+            ->leftJoin('tb_produk_perencanaan as b', 'a.id_produk', 'b.id_produk')
+            ->leftJoin('tb_satuan as c', 'b.dosis_satuan', 'c.id_satuan')
+            ->leftJoin('tb_satuan as d', 'b.campuran_satuan', 'd.id_satuan')
+            ->where([['a.tgl', $tgl], ['a.id_kandang', $id_kandang], ['a.kategori', $kategori]])
+            ->get();
     }
 
     public function viewHistoryPerencanaan(Request $r)
@@ -1032,7 +1168,7 @@ class DashboardKandangController extends Controller
             'obat_ayam' => $obat_ayam,
             'obat_aym' => $obat_aym,
         ];
-        return view('dashboard_kandang.history.editPerencanaan',$data);
+        return view('dashboard_kandang.history.editPerencanaan', $data);
     }
 
     public function edit_perencanaan(Request $r)
@@ -1053,8 +1189,8 @@ class DashboardKandangController extends Controller
 
         $no_nota = strtoupper(str()->random(5));
 
-        if(!empty($r->id_pakan)) {
-            for ($i=0; $i < count($r->id_pakan); $i++) { 
+        if (!empty($r->id_pakan)) {
+            for ($i = 0; $i < count($r->id_pakan); $i++) {
                 $dataPakan = [
                     'id_kandang' => $id_kandang,
                     'id_produk_pakan' => $r->id_pakan[$i],
@@ -1074,7 +1210,7 @@ class DashboardKandangController extends Controller
                     'pcs' => 0,
                     'total_rp' => 0,
                     'no_nota' => $no_nota,
-                    'pcs_kredit' =>  ($r->gr_pakan[$i] / 1000) - $stok->stok,
+                    'pcs_kredit' => ($r->gr_pakan[$i] / 1000) - $stok->stok,
                     'admin' => auth()->user()->name
                 ];
                 DB::table('stok_produk_perencanaan')->insert($dataStok);
@@ -1093,8 +1229,8 @@ class DashboardKandangController extends Controller
             DB::table('tb_karung_perencanaan')->insert($dataKarung);
         }
 
-        if(!empty($r->id_obat_pakan)) {
-            for ($i=0; $i < count($r->id_obat_pakan); $i++) { 
+        if (!empty($r->id_obat_pakan)) {
+            for ($i = 0; $i < count($r->id_obat_pakan); $i++) {
                 $data1 = [
                     'kategori' => 'obat_pakan',
                     'id_produk' => $r->id_obat_pakan[$i],
@@ -1117,15 +1253,15 @@ class DashboardKandangController extends Controller
                     'total_rp' => 0,
                     'no_nota' => $no_nota,
                     'id_kandang' => $id_kandang,
-                    'pcs_kredit' =>  ($r->dosis_obat_pakan[$i]  / 1000) - $stok->stok,
+                    'pcs_kredit' => ($r->dosis_obat_pakan[$i]  / 1000) - $stok->stok,
                     'admin' => auth()->user()->name
                 ];
                 DB::table('stok_produk_perencanaan')->insert($dataStok);
             }
         }
 
-        if(!empty($r->id_obat_air)) {
-            for ($i=0; $i < count($r->id_obat_air); $i++) { 
+        if (!empty($r->id_obat_air)) {
+            for ($i = 0; $i < count($r->id_obat_air); $i++) {
                 $data1 = [
                     'kategori' => 'obat_air',
                     'id_produk' => $r->id_obat_air[$i],
@@ -1151,14 +1287,14 @@ class DashboardKandangController extends Controller
                     'pcs' => 0,
                     'total_rp' => 0,
                     'no_nota' => $no_nota,
-                    'pcs_kredit' =>  ($r->dosis_obat_pakan[$i] / 1000) - $stok->stok,
+                    'pcs_kredit' => ($r->dosis_obat_pakan[$i] / 1000) - $stok->stok,
                     'admin' => auth()->user()->name
                 ];
                 DB::table('stok_produk_perencanaan')->insert($dataStok);
             }
         }
 
-        if(!empty($r->id_obat_ayam)) {
+        if (!empty($r->id_obat_ayam)) {
             $data1 = [
                 'kategori' => 'obat_air',
                 'id_produk' => $r->id_obat_ayam,
@@ -1180,7 +1316,7 @@ class DashboardKandangController extends Controller
                 'pcs' => 0,
                 'total_rp' => 0,
                 'no_nota' => $no_nota,
-                'pcs_kredit' =>  ($r->dosis_obat_ayam[$i] / 1000) - $stok->stok,
+                'pcs_kredit' => ($r->dosis_obat_ayam[$i] / 1000) - $stok->stok,
                 'admin' => auth()->user()->name
             ];
             DB::table('stok_produk_perencanaan')->insert($dataStok);
@@ -1196,6 +1332,611 @@ class DashboardKandangController extends Controller
             'kandang' => DB::table('kandang')->get(),
             'tgl' => $r->tgl
         ];
-        return view('dashboard_kandang.history.layer',$data);
+        return view('dashboard_kandang.history.layer', $data);
+    }
+
+    public function getProdukObat($id_kandang, $jenis)
+    {
+        return DB::select("SELECT a.waktu,a.cara_pemakaian as cara,a.tgl,b.nm_produk, a.dosis,a.campuran, e.nm_satuan as dosis_satuan, f.nm_satuan as campuran_satuan,(a.dosis) as dosis_obat,d.debit
+        FROM tb_obat_perencanaan as a
+        LEFT JOIN tb_produk_perencanaan as b  ON a.id_produk = b.id_produk
+        LEFT JOIN tb_satuan as e ON b.dosis_satuan = e.id_satuan
+        LEFT JOIN tb_satuan as f on b.campuran_satuan = f.id_satuan
+        LEFT JOIN (
+            SELECT a.id_produk,SUM(b.debit) as debit FROM `tb_produk_perencanaan` as a
+            LEFT JOIN jurnal as b ON a.id_produk = SUBSTRING_INDEX(RIGHT(b.ket, LENGTH(b.ket) - INSTR(b.ket, '-')), '-', -1)
+            WHERE a.kategori = '$jenis' AND b.debit != 0
+            GROUP BY a.id_produk
+        ) AS d ON d.id_produk = a.id_produk
+        WHERE b.kategori = '$jenis' AND a.id_kandang = '$id_kandang' ORDER BY a.tgl DESC;");
+    }
+
+    public function daily_layer(Request $r)
+    {
+        $id_kandang = $r->id_kandang;
+
+        $kandang = DB::selectOne("SELECT a.stok_awal as ayam_awal, a.nm_kandang, a.strain as nm_strain FROM `kandang` as a
+        WHERE a.id_kandang = '$id_kandang'");
+
+        $spreadsheet = new Spreadsheet;
+
+        $style = array(
+            'font' => array(
+                'size' => 9
+            ),
+            'borders' => array(
+                'allBorders' => array(
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                ),
+            ),
+            'alignment' => array(
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ),
+            'fill' => array(
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+
+            ),
+        );
+        $style2 = array(
+            'font' => array(
+                'size' => 18,
+                'setBold' => true
+            ),
+            'alignment' => array(
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ),
+            'fill' => array(
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => array('argb' => 'ADD8E6')
+            ),
+        );
+        $style3 = array(
+            'font' => array(
+                'size' => 9,
+                'setBold' => true
+            ),
+        );
+
+        // daily production
+        $pullet = DB::select("SELECT a.tgl, sum(c.mati + c.jual) as pop, b.stok_awal, SUM(a.gr) as kg_pakan, TIMESTAMPDIFF(WEEK, b.chick_in , a.tgl) AS mgg,
+        c.mati as death, c.jual as culling, normal.normalPcs, normal.normalKg, abnormal.abnormalPcs, abnormal.abnormalKg, d.pcs,d.kg, sum(d.pcs) as ttl_pcs, SUM(d.kg) as ttl_kg, b.chick_in as ayam_awal
+        
+        FROM tb_pakan_perencanaan as a
+        LEFT JOIN kandang as b ON a.id_kandang = b.id_kandang
+        LEFT JOIN populasi as c ON c.id_kandang = a.id_kandang AND c.tgl = a.tgl
+        LEFT JOIN stok_telur as d ON d.id_kandang = a.id_kandang AND d.tgl = a.tgl
+        LEFT JOIN (
+            SELECT a.tgl,a.id_kandang, sum(a.pcs) as normalPcs, sum(a.kg) as normalKg FROM stok_telur as a
+            WHERE a.id_telur = 1 AND a.id_kandang = '$id_kandang'
+            GROUP BY a.tgl
+        ) as normal ON normal.id_kandang = a.id_kandang AND normal.tgl = a.tgl
+        LEFT JOIN (
+            SELECT a.tgl,a.id_kandang, sum(a.pcs) as abnormalPcs, sum(a.kg) as abnormalKg FROM stok_telur as a
+            WHERE a.id_telur != 1 AND a.id_kandang = '$id_kandang'
+            GROUP BY a.tgl
+        ) as abnormal ON abnormal.id_kandang = a.id_kandang AND abnormal.tgl = a.tgl
+        WHERE a.id_kandang = '$id_kandang'
+        GROUP BY a.tgl
+        ORDER BY a.tgl ASC");
+        $spreadsheet->setActiveSheetIndex(0);
+        $sheet1 = $spreadsheet->getActiveSheet();
+        $sheet1->setTitle('DAILY PRODUCTION');
+
+        $sheet1->setCellValue('A1', 'DAILY COMMERCIAL LAYER PRODUCTION')
+            ->setCellValue('A3', "HEN HOUSE/POPULATION : $kandang->ayam_awal")
+            ->setCellValue('A5', "HOUSE : $kandang->nm_kandang")
+            ->setCellValue('A7', "STRAIN : $kandang->nm_strain")
+            ->setCellValue('A9', 'DATE')
+            ->setCellValue('B9', 'AGE OF BIRD')
+            ->setCellValue('C9', 'CHICK AMOUNT')
+            ->setCellValue('D9', 'DEPLETION')
+            ->setCellValue('I9', 'FEED CONSUMTION')
+            ->setCellValue('K9', 'EGG PRODUCTION')
+
+            ->setCellValue('D10', 'BIRD DEATH')
+            ->setCellValue('E10', 'BIRD CULLING')
+            ->setCellValue('F10', 'BIRD TOTAL')
+            ->setCellValue('G10', '%')
+            ->setCellValue('H10', 'CUM')
+            ->setCellValue('I10', 'PER DAY (KG)')
+            ->setCellValue('J10', 'CUM')
+            ->setCellValue('K10', 'PERDAY')
+
+            ->setCellValue('K11', 'NORMAL')
+            ->setCellValue('L11', 'ABNORMAL')
+            ->setCellValue('M11', 'TOTAL')
+            ->setCellValue('N11', '%HD')
+            ->setCellValue('O11', 'CUM (BUTIR)')
+            ->setCellValue('P11', 'WIGHT (KG) ')
+            ->setCellValue('Q11', 'CUM (KG)')
+            ->setCellValue('R9', 'EGG WEIGHT (g)')
+            ->setCellValue('S9', 'FCR')
+            ->setCellValue('S10', 'PER DAY')
+            ->setCellValue('T10', 'CUM');
+
+        $kolom = 12;
+        $kum = 0;
+        $cum_kg = 0;
+        $cum_ttlpcs = 0;
+        $cum_ttlkg = 0;
+
+        foreach ($pullet as $d) {
+            $kum += $d->death + $d->culling;
+            $cum_kg += $d->kg_pakan;
+            $cum_ttlpcs += $d->ttl_pcs;
+            $cum_ttlkg += $d->ttl_kg;
+            $populasi = $d->stok_awal - $d->pop;
+
+            $birdTotal = $d->death + $d->culling;
+
+            $sheet1->setCellValue("A$kolom", date('Y-m-d', strtotime($d->tgl)))
+                ->setCellValue("B$kolom", $d->mgg)
+                ->setCellValue("C$kolom", $populasi - $birdTotal ?? 0)
+                ->setCellValue("D$kolom", $d->death ?? 0)
+                ->setCellValue("E$kolom", $d->culling ?? 0)
+                ->setCellValue("F$kolom", $birdTotal);
+            $death = $d->death ?? 0;
+            $culling = $d->culling ?? 0;
+            $pop = $populasi  ?? 0;
+            $sheet1->setCellValue("G$kolom", ($birdTotal) > 0 && $pop > 0 ? number_format((($death + $culling) / $pop) * 100, 2) : 0)
+                ->setCellValue("H$kolom", $kum)
+                ->setCellValue("I$kolom", $d->kg_pakan)
+                ->setCellValue("J$kolom", $cum_kg)
+                ->setCellValue("K$kolom", $d->normalPcs ?? 0)
+                ->setCellValue("L$kolom", $d->abnormalPcs ?? 0)
+                ->setCellValue("M$kolom", $d->abnormalPcs ?? 0 + $d->normalPcs ?? 0)
+                ->setCellValue("N$kolom", $pop > 0 ? number_format(($d->ttl_pcs / $pop) * 100, 2) : 0)
+                ->setCellValue("O$kolom", $cum_ttlpcs);
+            $ttlPcs = $d->normalPcs ?? 0 + $d->abnormalPcs ?? 0;
+            $weightKg = $d->ttl_kg - ($ttlPcs / 180);
+            $sheet1->setCellValue("P$kolom", number_format($weightKg, 2))
+                ->setCellValue("Q$kolom", number_format($cum_ttlkg - ($cum_ttlpcs / 180), 2))
+                ->setCellValue("R$kolom", empty($d->normalPcs) ? 0 : number_format(($weightKg / $d->normalPcs ?? 0) * 1000, 2))
+                ->setCellValue("S$kolom", number_format($d->kg_pakan ?? 0 / $weightKg ?? 0, 2))
+                ->setCellValue("T$kolom", number_format($cum_kg / ($cum_ttlkg - ($cum_ttlpcs / 180)), 2));
+
+            $kolom++;
+        }
+        $sheet1->mergeCells("A1:R1")
+            ->mergeCells("A3:C3")
+            ->mergeCells("A5:C5")
+            ->mergeCells("A7:C7")
+
+            ->mergeCells("A9:A11")
+            ->mergeCells("B9:B11")
+            ->mergeCells("C9:C11")
+
+            ->mergeCells("D10:D11")
+            ->mergeCells("E10:E11")
+            ->mergeCells("F10:F11")
+            ->mergeCells("G10:G11")
+            ->mergeCells("H10:H11")
+
+            ->mergeCells("I10:I11")
+            ->mergeCells("J10:J11")
+
+            ->mergeCells("S10:S11")
+            ->mergeCells("T10:T11")
+
+            ->mergeCells("D9:H9")
+            ->mergeCells("R9:R11")
+            ->mergeCells("I9:J9")
+            ->mergeCells("K9:Q9")
+
+            ->mergeCells("S9:T9");
+
+        $sheet1->getStyle('A1:T1')->applyFromArray($style2);
+        $sheet1->getStyle('A9:T11')->applyFromArray($style2);
+        $sheet1->getStyle('A3:B3')->applyFromArray($style3);
+        $sheet1->getStyle('A5:B5')->applyFromArray($style3);
+        $sheet1->getStyle('A7:B7')->applyFromArray($style3);
+        $sheet1->getStyle('A9:T11')->applyFromArray($style);
+        $sheet1->getStyle('A9:T9')->getAlignment()->setWrapText(true);
+        $sheet1->getColumnDimension('B')->setWidth(10.64);
+        $sheet1->getColumnDimension('D')->setWidth(8.36);
+        $sheet1->getColumnDimension('F')->setWidth(9.82);
+        $batas = $kolom - 1;
+        $sheet1->getStyle('A12:T' . $batas)->applyFromArray($style);
+        // end daily -----------------------------------------------
+
+        // obat pakan -----------------
+        $obat_pakan = DB::select("SELECT a.tgl,b.nm_produk, a.dosis,a.campuran, e.nm_satuan as dosis_satuan, f.nm_satuan as campuran_satuan,(a.dosis * c.ttl_pakan) as dosis_obat,d.debit
+        FROM tb_obat_perencanaan as a
+        LEFT JOIN tb_produk_perencanaan as b  ON a.id_produk = b.id_produk
+        LEFT JOIN tb_satuan as e ON b.dosis_satuan = e.id_satuan
+        LEFT JOIN tb_satuan as f on b.campuran_satuan = f.id_satuan
+        LEFT JOIN (
+            SELECT a.id_kandang , a.tgl, SUM(a.gr) AS ttl_pakan
+                FROM tb_pakan_perencanaan AS a
+                GROUP BY a.tgl , a.id_kandang
+        )AS c ON c.id_kandang = a.id_kandang AND c.tgl = a.tgl
+        LEFT JOIN (
+            SELECT a.id_produk,SUM(b.debit) as debit FROM `tb_produk_perencanaan` as a
+            LEFT JOIN jurnal as b ON a.id_produk = SUBSTRING_INDEX(RIGHT(b.ket, LENGTH(b.ket) - INSTR(b.ket, '-')), '-', -1)
+            WHERE a.kategori = 'obat_pakan' AND b.debit != 0
+            GROUP BY a.id_produk
+        ) AS d ON d.id_produk = a.id_produk
+        WHERE b.kategori = 'obat_pakan' AND a.id_kandang = '$id_kandang' ORDER BY a.tgl DESC");
+
+        $spreadsheet->createSheet();
+        $spreadsheet->setActiveSheetIndex(1);
+        $sheet2 = $spreadsheet->getActiveSheet(1);
+        $sheet2->setTitle('OBAT PAKAN');
+        $sheet2->setCellValue('A1', 'Tanggal')
+            ->setCellValue('B1', 'Nama Obat')
+            ->setCellValue('C1', 'Dosis')
+            ->setCellValue('D1', 'Satuan')
+            ->setCellValue('E1', 'Campuran')
+            ->setCellValue('F1', 'Satuan')
+            ->setCellValue('G1', 'Ttl Dosis')
+            ->setCellValue('H1', 'Cost');
+
+        $kolom = 2;
+        foreach ($obat_pakan as $d) {
+            $sheet2->setCellValue("A$kolom", date('Y-m-d', strtotime($d->tgl)))
+                ->setCellValue("B$kolom", $d->nm_produk)
+                ->setCellValue("C$kolom", $d->dosis)
+                ->setCellValue("D$kolom", $d->dosis_satuan)
+                ->setCellValue("E$kolom", $d->campuran)
+                ->setCellValue("F$kolom", $d->campuran_satuan)
+                ->setCellValue("G$kolom", $d->dosis_obat)
+                ->setCellValue("H$kolom", $d->debit);
+            $kolom++;
+        }
+
+        $batas = $kolom - 1;
+        $sheet2->getStyle('A1:H' . $batas)->applyFromArray($style);
+        // end obat pakan ---------------------------------
+
+        // obat air -------------------------
+        $obat_air = $this->getProdukObat($id_kandang, 'obat_air');
+
+        $spreadsheet->createSheet();
+        $spreadsheet->setActiveSheetIndex(2);
+        $sheet3 = $spreadsheet->getActiveSheet(2);
+        $sheet3->setTitle('OBAT AIR');
+        $sheet3->setCellValue('A1', 'Tanggal')
+            ->setCellValue('B1', 'Nama Obat')
+            ->setCellValue('C1', 'Dosis')
+            ->setCellValue('D1', 'Satuan')
+            ->setCellValue('E1', 'Campuran')
+            ->setCellValue('F1', 'Satuan')
+            ->setCellValue('G1', 'Waktu')
+            ->setCellValue('H1', 'Cara')
+            ->setCellValue('I1', 'Cost');
+
+        $kolom = 2;
+        foreach ($obat_air as $d) {
+            $sheet3->setCellValue('A' . $kolom, date('Y-m-d', strtotime($d->tgl)))
+                ->setCellValue('B' . $kolom, $d->nm_produk)
+                ->setCellValue("C$kolom", $d->dosis)
+                ->setCellValue("D$kolom", $d->dosis_satuan)
+                ->setCellValue("E$kolom", $d->campuran)
+                ->setCellValue("F$kolom", $d->campuran_satuan)
+                ->setCellValue('G' . $kolom, $d->waktu)
+                ->setCellValue('H' . $kolom, $d->cara)
+                ->setCellValue('I' . $kolom, round($d->debit, 0));
+            $kolom++;
+        }
+        $batas = $kolom - 1;
+        $sheet3->getStyle('A1:I' . $batas)->applyFromArray($style);
+        // end obat air --------------------------------------------
+
+
+        // obat ayam -----------------------
+        $spreadsheet->createSheet();
+        $spreadsheet->setActiveSheetIndex(3);
+        $sheet4 = $spreadsheet->getActiveSheet(3);
+        $sheet4->setTitle('OBAT AYAM');
+        $sheet4->setCellValue('A1', 'Tanggal')
+            ->setCellValue('B1', 'Nama Obat')
+            ->setCellValue('C1', 'Dosis')
+            ->setCellValue('D1', 'Satuan')
+            ->setCellValue('E1', 'Dosis Perekor')
+            ->setCellValue('F1', 'Cost');
+
+        $obat_ayam = $this->getProdukObat($id_kandang, 'obat_ayam');
+        $pop = DB::selectOne("SELECT sum(a.mati + a.jual) as pop,b.stok_awal FROM populasi as a
+                            LEFT JOIN kandang as b ON a.id_kandang = b.id_kandang
+                            WHERE a.id_kandang = '$id_kandang'");
+        $populasi = $pop->stok_awal - $pop->pop;
+        $kolom = 2;
+        foreach ($obat_ayam as $d) {
+            $sheet4->setCellValue('A' . $kolom, date('Y-m-d', strtotime($d->tgl)))
+                ->setCellValue('B' . $kolom, $d->nm_produk)
+                ->setCellValue('C' . $kolom, $d->dosis * $populasi)
+                ->setCellValue('D' . $kolom, $d->dosis_satuan)
+                ->setCellValue('E' . $kolom, $d->dosis)
+                ->setCellValue('F' . $kolom, round($d->debit, 0));
+            $kolom++;
+        }
+
+        $batas = $kolom - 1;
+        $sheet4->getStyle('A1:F' . $batas)->applyFromArray($style);
+        // end obat ayam -----------------------------------------
+
+        // vaksin ------------------------
+        $vaksin = DB::table('tb_vaksin_perencanaan')->where('id_kandang', $id_kandang)->get();
+        $spreadsheet->createSheet();
+        $spreadsheet->setActiveSheetIndex(4);
+        $sheet5 = $spreadsheet->getActiveSheet(4);
+        $sheet5->setTitle('VAKSIN');
+        $sheet5->setCellValue('A1', 'Tanggal')
+            ->setCellValue('B1', 'Nama Vaksin')
+            ->setCellValue('C1', 'Dosis')
+            ->setCellValue('D1', 'Cost');
+
+        $kolom = 2;
+        foreach ($vaksin as $d) {
+            $sheet5->setCellValue("A$kolom", date('Y-m-d', strtotime($d->tgl)))
+                ->setCellValue("B$kolom", $d->nm_vaksin)
+                ->setCellValue("C$kolom", $d->qty)
+                ->setCellValue("D$kolom", $d->ttl_rp);
+            $kolom++;
+        }
+        $batas = $kolom - 1;
+        $sheet5->getStyle('A1:D' . $batas)->applyFromArray($style);
+        // end vaksin ---------------------------------------------
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="Daily Layer.xlsx"');
+        header('Cache-Control: max-age=0');
+
+        $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $writer->save('php://output');
+        exit();
+    }
+
+    public function week_layer(Request $r)
+    {
+        $id_kandang = $r->id_kandang;
+        $kandang = DB::selectOne("SELECT a.stok_awal as ayam_awal, a.nm_kandang, a.strain as nm_strain FROM `kandang` as a
+        WHERE a.id_kandang = '$id_kandang'");
+
+        $spreadsheet = new Spreadsheet;
+
+        $style = array(
+            'font' => array(
+                'size' => 9
+            ),
+            'borders' => array(
+                'allBorders' => array(
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                ),
+            ),
+            'alignment' => array(
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ),
+            'fill' => array(
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+
+            ),
+        );
+        $style2 = array(
+            'font' => array(
+                'size' => 18,
+                'setBold' => true
+            ),
+            'alignment' => array(
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ),
+            'fill' => array(
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => array('argb' => 'ADD8E6')
+            ),
+        );
+        $style3 = array(
+            'font' => array(
+                'size' => 9,
+                'setBold' => true
+            ),
+        );
+
+        // daily production
+        $pullet = DB::select("SELECT a.tgl, sum(c.mati + c.jual) as pop, b.stok_awal, SUM(a.gr) as kg_pakan, TIMESTAMPDIFF(WEEK, b.chick_in , a.tgl) AS mgg,
+        c.mati as death, c.jual as culling, normal.normalPcs, normal.normalKg, abnormal.abnormalPcs, abnormal.abnormalKg, d.pcs,d.kg, sum(d.pcs) as ttl_pcs, SUM(d.kg) as ttl_kg, b.chick_in as ayam_awal
+        
+        FROM tb_pakan_perencanaan as a
+        LEFT JOIN kandang as b ON a.id_kandang = b.id_kandang
+        LEFT JOIN populasi as c ON c.id_kandang = a.id_kandang AND c.tgl = a.tgl
+        LEFT JOIN stok_telur as d ON d.id_kandang = a.id_kandang AND d.tgl = a.tgl
+        LEFT JOIN (
+            SELECT a.tgl,a.id_kandang, sum(a.pcs) as normalPcs, sum(a.kg) as normalKg FROM stok_telur as a
+            WHERE a.id_telur = 1 AND a.id_kandang = '$id_kandang'
+            GROUP BY a.tgl
+        ) as normal ON normal.id_kandang = a.id_kandang AND normal.tgl = a.tgl
+        LEFT JOIN (
+            SELECT a.tgl,a.id_kandang, sum(a.pcs) as abnormalPcs, sum(a.kg) as abnormalKg FROM stok_telur as a
+            WHERE a.id_telur != 1 AND a.id_kandang = '$id_kandang'
+            GROUP BY a.tgl
+        ) as abnormal ON abnormal.id_kandang = a.id_kandang AND abnormal.tgl = a.tgl
+        WHERE a.id_kandang = '$id_kandang'
+        GROUP BY a.tgl
+        ORDER BY a.tgl ASC");
+        $spreadsheet->setActiveSheetIndex(0);
+        $sheet1 = $spreadsheet->getActiveSheet();
+        $sheet1->setTitle('Recording CV Agrilaras');
+
+        $sheet1->getStyle('A1:Z1')->applyFromArray($style2);
+        $sheet1->getStyle('A9:Z11')->applyFromArray($style2);
+        $sheet1->getStyle('A3:B3')->applyFromArray($style3);
+        $sheet1->getStyle('A5:B5')->applyFromArray($style3);
+        $sheet1->getStyle('A7:B7')->applyFromArray($style3);
+        $sheet1->getStyle('A9:Z11')->applyFromArray($style);
+        $sheet1->getStyle('A9:Z9')->getAlignment()->setWrapText(true);
+        $sheet1->getColumnDimension('B')->setWidth(10.64);
+        $sheet1->getColumnDimension('D')->setWidth(8.36);
+        $sheet1->getColumnDimension('F')->setWidth(9.82);
+
+        $sheet1->setCellValue('A1', 'COMMERCIAL LAYER PRODUCTION')
+            ->mergeCells("A1:Z1")
+            ->mergeCells("A3:C3")
+            ->mergeCells("A5:C5")
+            ->mergeCells("A7:C7")
+            ->setCellValue('A3', "HEN HOUSE/POPULATION : $kandang->ayam_awal")
+            ->setCellValue('A5', "HOUSE : $kandang->nm_kandang")
+            ->setCellValue('A7', "STRAIN : $kandang->nm_strain")
+            ->setCellValue('A9', 'DATE END OF WEEK')
+            ->setCellValue('B9', 'WEEK OF PROD')
+            ->setCellValue('B11', 'AGE')
+            ->setCellValue('C11', 'AOL')
+            ->setCellValue('D9', 'CHICK AMOUNT')
+            ->setCellValue('E9', 'DEPLETION')
+            ->setCellValue('E10', 'PER WEEK')
+            ->setCellValue('E11', 'BIRD')
+            ->setCellValue('F11', '(%)')
+            ->setCellValue('G10', 'CUM')
+            ->setCellValue('G11', 'BIRD')
+            ->setCellValue('H11', '(%)')
+            ->mergeCells("A9:A11")
+            ->mergeCells("B9:C10")
+            ->mergeCells("D9:D11")
+            ->mergeCells("E9:H9")
+            ->mergeCells("E10:F11")
+            ->mergeCells("G10:H11")
+
+            ->setCellValue('I9', 'FEED CONSUMTION (kg)')
+            ->mergeCells("I9:K9")
+
+            ->setCellValue('I10', 'PER WEEK')
+            ->mergeCells("I10:I11")
+
+            ->setCellValue('J10', 'CUM')
+            ->mergeCells("J10:J11")
+
+            ->setCellValue('K10', 'FEED/DAY 100/BIRDS')
+            ->mergeCells("K10:K11")
+
+            ->setCellValue('L9', 'EGG PRODUCTION')
+            ->mergeCells("L9:Q9")
+
+            ->setCellValue('L10', 'PER WEEK')
+            ->mergeCells("L10:L11")
+
+            ->setCellValue('M10', 'CUM')
+            ->mergeCells("M10:M11")
+
+            ->setCellValue('N10', '%HD')
+            ->setCellValue('N11', 'ACT')
+            ->setCellValue('O11', 'STD')
+            ->mergeCells("N10:O10")
+
+            ->setCellValue('P10', 'CUM HH')
+            ->setCellValue('P11', 'STD')
+            ->setCellValue('Q11', 'ACT')
+            ->mergeCells("P10:Q10")
+
+            ->setCellValue('R9', 'EGG WEIGHT (GRAM/BUTIR)')
+            ->mergeCells("R9:S10")
+
+            ->setCellValue('R11', 'STD')
+            ->setCellValue('S11', 'ACT')
+            ->setCellValue('T9', 'WEIGHT EGG PRODUCTION')
+            ->mergeCells("T9:W9")
+
+            ->setCellValue('T10', 'PER WEEK')
+            ->setCellValue('T11', 'KG')
+            ->setCellValue('U11', 'CUM')
+            ->mergeCells("T10:U10")
+
+            ->setCellValue('V10', 'CUM HH (KG)')
+            ->mergeCells("V10:W10")
+
+            ->setCellValue('V11', 'STD')
+            ->setCellValue('W11', 'ACT')
+            ->setCellValue('X9', 'FCR')
+            ->mergeCells("X9:Y9")
+
+            ->setCellValue('X10', 'PER WEEK')
+            ->setCellValue('Y10', 'CUM')
+            ->mergeCells("X10:X11")
+            ->mergeCells("Y10:Y11")
+
+            ->setCellValue('Z9', 'KG EGG/ 100BIRDS/ DAY')
+            ->mergeCells("Z9:Z11");
+
+        $kolom = 12;
+        $kum = 0;
+        $cum_kg = 0;
+        $cum_ttlpcs = 0;
+        $cum_ttlkg = 0;
+
+        // foreach ($pullet as $d) {
+        //     $kum += $d->death + $d->culling;
+        //     $cum_kg += $d->kg_pakan;
+        //     $cum_ttlpcs += $d->ttl_pcs;
+        //     $cum_ttlkg += $d->ttl_kg;
+        //     $populasi = $d->stok_awal - $d->pop;
+
+        //     $birdTotal = $d->death + $d->culling;
+
+        //     $sheet1->setCellValue("A$kolom", date('Y-m-d', strtotime($d->tgl)))
+        //         ->setCellValue("B$kolom", $d->mgg)
+        //         ->setCellValue("C$kolom", $populasi - $birdTotal ?? 0)
+        //         ->setCellValue("D$kolom", $d->death ?? 0)
+        //         ->setCellValue("E$kolom", $d->culling ?? 0)
+        //         ->setCellValue("F$kolom", $birdTotal);
+        //     $death = $d->death ?? 0;
+        //     $culling = $d->culling ?? 0;
+        //     $pop = $populasi  ?? 0;
+        //     $sheet1->setCellValue("G$kolom", ($birdTotal) > 0 && $pop > 0 ? number_format((($death + $culling) / $pop) * 100, 2) : 0)
+        //         ->setCellValue("H$kolom", $kum)
+        //         ->setCellValue("I$kolom", $d->kg_pakan)
+        //         ->setCellValue("J$kolom", $cum_kg)
+        //         ->setCellValue("K$kolom", $d->normalPcs ?? 0)
+        //         ->setCellValue("L$kolom", $d->abnormalPcs ?? 0)
+        //         ->setCellValue("M$kolom", $d->abnormalPcs ?? 0 + $d->normalPcs ?? 0)
+        //         ->setCellValue("N$kolom", $pop > 0 ? number_format(($d->ttl_pcs / $pop) * 100, 2) : 0)
+        //         ->setCellValue("O$kolom", $cum_ttlpcs);
+        //     $ttlPcs = $d->normalPcs ?? 0 + $d->abnormalPcs ?? 0;
+        //     $weightKg = $d->ttl_kg - ($ttlPcs / 180);
+        //     $sheet1->setCellValue("P$kolom", number_format($weightKg, 2))
+        //         ->setCellValue("Q$kolom", number_format($cum_ttlkg - ($cum_ttlpcs / 180), 2))
+        //         ->setCellValue("R$kolom", empty($d->normalPcs) ? 0 : number_format(($weightKg / $d->normalPcs ?? 0) * 1000,2))
+        //         ->setCellValue("S$kolom", number_format($d->kg_pakan ?? 0 / $weightKg ?? 0,2))
+        //         ->setCellValue("T$kolom", number_format($cum_kg / ($cum_ttlkg - ($cum_ttlpcs / 180)),2));
+
+        //     $kolom++;
+        // }
+
+        $batas = $kolom - 1;
+        $sheet1->getStyle('A12:T' . $batas)->applyFromArray($style);
+        // end daily -----------------------------------------------
+
+
+        // vaksin ------------------------
+        $vaksin = DB::table('tb_vaksin_perencanaan')->where('id_kandang', $id_kandang)->get();
+        // $spreadsheet->createSheet();
+        // $spreadsheet->setActiveSheetIndex(4);
+        // $sheet5 = $spreadsheet->getActiveSheet(4);
+        // $sheet5->setTitle('VAKSIN');
+        // $sheet5->setCellValue('A1', 'Tanggal')
+        //     ->setCellValue('B1', 'Nama Vaksin')
+        //     ->setCellValue('C1', 'Dosis')
+        //     ->setCellValue('D1', 'Cost');
+
+        // $kolom = 2;
+        // foreach ($vaksin as $d) {
+        //     $sheet5->setCellValue("A$kolom", date('Y-m-d', strtotime($d->tgl)))
+        //         ->setCellValue("B$kolom", $d->nm_vaksin)
+        //         ->setCellValue("C$kolom", $d->qty)
+        //         ->setCellValue("D$kolom", $d->ttl_rp);
+        //     $kolom++;
+        // }
+        // $batas = $kolom - 1;
+        // $sheet5->getStyle('A1:D' . $batas)->applyFromArray($style);
+        // end vaksin ---------------------------------------------
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="Daily Layer.xlsx"');
+        header('Cache-Control: max-age=0');
+
+        $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $writer->save('php://output');
+        exit();
     }
 }

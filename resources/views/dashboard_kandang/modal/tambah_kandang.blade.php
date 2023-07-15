@@ -5,7 +5,7 @@
         <div class="row">
             <div class="col-lg-6">
                 <div class="form-group">
-                    <label for="">chick In</label>
+                    <label for="">Tanggal Lahir</label>
                     <input required value="{{ date('Y-m-d') }}" type="date" name="tgl" class="form-control">
                 </div>
             </div>

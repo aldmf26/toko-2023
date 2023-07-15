@@ -1,8 +1,8 @@
 <div class="header-top">
     <div class="container">
-        <div class="logo">
-            <a href="dashboard"><img src="/assets/login/img/empat.svg" alt="Logo"></a>
-            <h5>KAS AGA</h5>
+        <div class="logo text-center">
+            <a href="dashboard"><img src="https://agrilaras.putrirembulan.com/assets/img/logo.png" alt="Logo"></a>
+            <h5>AGRILARAS</h5>
         </div>
         <div class="header-top-right">
 

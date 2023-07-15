@@ -18,9 +18,9 @@
                     ({{ tanggal($tgl_per) }})</h5>
                 <h4 class="float-start" class="" style="color: #787878; font-weight: bold;">Populasi :
                     {{ $populasi }} | Pakan/Gr :
-                    {{ number_format(($pakan->total / $populasi) * 1000, 0) }}
+                    {{ number_format($pakan->total / $populasi, 0) }}
                     | {{ $umur->mgg + 1 }} Minggu</h4>
-                <a href="#"  id_kandang="{{ $id_kandang }}" tgl="{{ $tgl_per }}"
+                <a href="#" id_kandang="{{ $id_kandang }}" tgl="{{ $tgl_per }}"
                     class="btn  btn-primary float-end " id="edit_per"><i class="fas fa-edit"></i>
                     Edit</a>
             </div>
@@ -31,12 +31,11 @@
         <div class="card">
             <div class="card-header">
                 <h4 style="color: #787878;">
-                    <?php if (empty($pakan1->gr)) : ?>
-                    <?php else : ?>
-                    <?= $pakan1->gr ?> Karung
-                    <?= $pakan1->karung ?> Kg
-                    <?php endif ?>
 
+                    @if (!empty($pakan1->gr))
+                        {{ $pakan1->gr }} Karung
+                        {{ $pakan1->karung }} Kg
+                    @endif
                 </h4>
             </div>
             <div class="card-body">
@@ -44,9 +43,9 @@
                     <table class="table table-bordered" border="1" width="100%">
                         <thead style="font-family: Helvetica; color: #78909C; text-transform: uppercase;">
                             <tr>
-                                <th style="background-color: #BDEED9">Pakan</th>
-                                <th style="background-color: #BDEED9">Qty</th>
-                                <th style="background-color: #BDEED9">Satuan</th>
+                                <th class="dhead">Pakan</th>
+                                <th class="dhead">Qty</th>
+                                <th class="dhead">Satuan</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -61,9 +60,9 @@
                         </tbody>
                         <thead style="font-family: Helvetica; color: #78909C; text-transform: uppercase;">
                             <tr>
-                                <th style="background-color: #BDEED9">Obat</th>
-                                <th style="background-color: #BDEED9">Qty</th>
-                                <th style="background-color: #BDEED9">Satuan</th>
+                                <th class="dhead">Obat</th>
+                                <th class="dhead">Qty</th>
+                                <th class="dhead">Satuan</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -85,21 +84,21 @@
     <div class="col-lg-4 end">
         <div class="card">
             <div class="card-header">
-                @if (empty($pakan1->gr2))
-                @else
-                    <h4 style="color: #787878;">1 Karung
-                        <?= $pakan1->gr2 ?> Kg
-                    </h4>
+                @if (!empty($pakan1->gr2))
+                <h4 style="color: #787878;">1 Karung
+                    {{$pakan1->gr2}} Kg
+                </h4>
                 @endif
+            
             </div>
             <div class="card-body">
                 <table class="table table-bordered" border="1" width="100%">
                     <thead
                         style="font-family: Helvetica; color: #78909C; background-color: #BDEED9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
                         <tr>
-                            <th style="background-color: #BDEED9">Pakan</th>
-                            <th style="background-color: #BDEED9">Qty</th>
-                            <th style="background-color: #BDEED9">Satuan</th>
+                            <th class="dhead">Pakan</th>
+                            <th class="dhead">Qty</th>
+                            <th class="dhead">Satuan</th>
                         </tr>
                     </thead>
                     @php
@@ -124,9 +123,9 @@
                     <thead
                         style="font-family: Helvetica; color: #78909C; background-color: #F4F8F9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
                         <tr>
-                            <th style=" background-color: #BDEED9; ">Obat</th>
-                            <th style="background-color: #BDEED9; ">Qty</th>
-                            <th style="background-color: #BDEED9; ">Satuan</th>
+                            <th class="dhead">Obat</th>
+                            <th class="dhead">Qty</th>
+                            <th class="dhead">Satuan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -161,9 +160,9 @@
                     <thead
                         style="font-family: Helvetica; color: #78909C; background-color: #BDEED9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
                         <tr>
-                            <th style="background-color: #BDEED9">Pakan</th>
-                            <th style="background-color: #BDEED9">Qty</th>
-                            <th style="background-color: #BDEED9">Satuan</th>
+                            <th class="dhead">Pakan</th>
+                            <th class="dhead">Qty</th>
+                            <th class="dhead">Satuan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -188,9 +187,9 @@
                     <thead
                         style="font-family: Helvetica; color: #78909C; background-color: #F4F8F9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
                         <tr>
-                            <th style=" background-color: #BDEED9; ">Obat</th>
-                            <th style="background-color: #BDEED9; ">Qty</th>
-                            <th style="background-color: #BDEED9; ">Satuan</th>
+                            <th class="dhead">Obat</th>
+                            <th class="dhead">Qty</th>
+                            <th class="dhead">Satuan</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -207,58 +206,23 @@
             </div>
         </div>
     </div>
-
-    <div class="col-lg-4 end">
-        <div class="table-responsive">
-            <table class="table table-bordered" border="1" width="100%">
-                <thead
-                    style="font-family: Helvetica; color: #78909C; background-color: #F4F8F9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
-                    <tr>
-                        <th colspan="7" style="color: red;">obat/ayam</th>
-                    </tr>
-                    <tr>
-                        <th style="background-color: #F5B4C5; color: white;">Obat</th>
-                        <th style="background-color: #F5B4C5; color: white;">Dosis</th>
-                        <th style="background-color: #F5B4C5; color: white;">Satuan</th>
-                    </tr>
-                </thead>
-                <tbody style="color: #787878; font-family:  Helvetica;">
-                    @if (empty($obat_ayam))
-                        <tr>
-                            <td style=" text-align: center;" colspan="7">Data tidak ada</td>
-                        </tr>
-                    @else
-                        @foreach ($obat_ayam as $o)
-                            <tr>
-                                <td style="">{{ $o->nm_produk }}</td>
-                                <td style="">{{ number_format($o->dosis, 0) }}</td>
-                                <td style="">{{ $o->satuan }}</td>
-                            </tr>
-                        @endforeach
-                    @endif
-
-                </tbody>
-            </table>
-        </div>
-    </div>
-
     <div class="col-lg-12 mt-3 end">
         <div class="table-responsive">
             <table class="table table-bordered" border="1" width="100%">
                 <thead
                     style="font-family: Helvetica; color: #78909C; background-color: #F4F8F9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
                     <tr>
-                        <th colspan="8" style="color: red;">obat/vit dengan campuran air</th>
+                        <th class="dhead" colspan="8">Obat/vit dengan campuran air</th>
                     </tr>
                     <tr>
-                        <th style="background-color: #F5B4C5; color: white;">Obat</th>
-                        <th style="background-color: #F5B4C5; color: white;">Dosis</th>
-                        <th style="background-color: #F5B4C5; color: white;">Satuan</th>
-                        <th style="background-color: #F5B4C5; color: white;">Campuran</th>
-                        <th style="background-color: #F5B4C5; color: white;">Satuan</th>
-                        <th style="background-color: #F5B4C5; color: white;">Waktu</th>
-                        <th style="background-color: #F5B4C5; color: white;">Ket</th>
-                        <th style="background-color: #F5B4C5; color: white;">Cara Pemakaian</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Obat</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Dosis</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Satuan</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Campuran</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Satuan</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Waktu</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Ket</th>
+                        <th class="dhead" style="background-color: #F5B4C5; color: white;">Cara Pemakaian</th>
                     </tr>
                 </thead>
                 <tbody style="color: #787878; font-family:  Helvetica;">
@@ -286,4 +250,37 @@
         </div>
     </div>
 
+    <div class="col-lg-4 end">
+        <div class="table-responsive">
+            <table class="table table-bordered" border="1" width="100%">
+                <thead
+                    style="font-family: Helvetica; color: #78909C; background-color: #F4F8F9; font-weight: 700; box-shadow: 0px 1px 3px 0px #cccccc;text-transform: uppercase;">
+                    <tr>
+                        <th class="dhead" colspan="7">Obat/ayam</th>
+                    </tr>
+                    <tr>
+                        <th class="dhead">Obat</th>
+                        <th class="dhead">Dosis</th>
+                        <th class="dhead">Satuan</th>
+                    </tr>
+                </thead>
+                <tbody style="color: #787878; font-family:  Helvetica;">
+                    @if (empty($obat_ayam))
+                        <tr>
+                            <td style=" text-align: center;" colspan="7">Data tidak ada</td>
+                        </tr>
+                    @else
+                        @foreach ($obat_ayam as $o)
+                            <tr>
+                                <td style="">{{ $o->nm_produk }}</td>
+                                <td style="">{{ number_format($o->dosis, 0) }}</td>
+                                <td style="">{{ $o->satuan }}</td>
+                            </tr>
+                        @endforeach
+                    @endif
+
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>

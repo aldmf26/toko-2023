@@ -32,7 +32,7 @@
             </div>
             <div class="col-lg-2">
                 <div class="form-group">
-                    <label for="">Stok Awal</label>
+                    <label for="">Stok Awal (Gr)</label>
                     <input type="text" name="stok_awal" class="form-control">
                 </div>
             </div>
