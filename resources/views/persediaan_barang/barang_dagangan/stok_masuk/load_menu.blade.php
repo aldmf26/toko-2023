@@ -21,7 +21,7 @@
             <input type="text" class="form-control" readonly name="no_nota" value="SM-{{ $detail->urutan }}">
         </div>
 
-        <div class="col-lg-3">
+        {{-- <div class="col-lg-3">
             <label for="">Pilih Gudang</label>
             <select required name="gudang_id" class="form-control select2" id="">
                 <option value="">- Pilih Gudang -</option>
@@ -31,7 +31,7 @@
                         {{ $d->nm_gudang }}</option>
                 @endforeach
             </select>
-        </div>
+        </div> --}}
         <div class="col-lg-4">
             <label for="">Keterangan</label>
             <input type="text" class="form-control" value="{{ $detail->ket }}" name="ket"
@@ -128,7 +128,7 @@
             <input type="text" class="form-control" readonly name="no_nota" value="SM-{{ $no_nota }}">
         </div>
 
-        <div class="col-lg-3">
+        {{-- <div class="col-lg-3">
             <label for="">Pilih Gudang</label>
             <select required name="gudang_id" class="form-control select2" id="">
                 <option value="">- Pilih Gudang -</option>
@@ -137,7 +137,7 @@
                         {{ $d->nm_gudang }}</option>
                 @endforeach
             </select>
-        </div>
+        </div> --}}
         <div class="col-lg-4">
             <label for="">Keterangan</label>
             <input type="text" class="form-control" value="" name="ket" placeholder="Keterangan">

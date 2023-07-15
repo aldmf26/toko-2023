@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Gudang;
+use App\Models\Jurnal;
 use App\Models\Produk;
 use App\Models\Satuan;
 use App\Models\Stok;
@@ -209,9 +210,11 @@ class BarangDaganganController extends Controller
             return redirect()->route('barang_dagangan.stok_masuk')->with('error', 'Data Tidak ada');
         }
         for ($i = 0; $i < count($r->id_produk); $i++) {
+            
             $jml_sebelumnya = $r->jml_sebelumnya[$i];
             $debit = $r->debit[$i];
 
+            
             $data = [
                 'id_produk' => $r->id_produk[$i],
                 'tgl' => $r->tgl,
@@ -221,7 +224,7 @@ class BarangDaganganController extends Controller
                 'kategori_id' => '3',
                 'status' => 'masuk',
                 'jenis' => $r->simpan == 'simpan' ? 'selesai' : 'draft',
-                'gudang_id' => $r->gudang_id,
+                'gudang_id' => 0,
                 'jml_sebelumnya' => $jml_sebelumnya,
                 'jml_sesudahnya' => $jml_sebelumnya + $debit,
                 'debit' => $debit,
@@ -229,6 +232,44 @@ class BarangDaganganController extends Controller
                 'rp_satuan' => $r->rp_satuan[$i],
                 'admin' => auth()->user()->name,
             ];
+
+            $id_akun = 31;
+
+            $max_akun = DB::table('jurnal')->latest('urutan')->where('id_akun', $id_akun)->first();
+            $akun = DB::table('akun')->where('id_akun', $id_akun)->first();
+            $urutan = empty($max_akun) ? '1001' : ($max_akun->urutan == 0 ? '1001' : $max_akun->urutan + 1);
+
+            Jurnal::create([
+                'tgl' => $r->tgl,
+                'id_akun' => $id_akun,
+                'id_buku' => 16,
+                'no_nota' => 'PEM-' . $r->no_nota,
+                'ket' => "Pembelian",
+                'debit' => $r->rp_satuan[$i],
+                'kredit' => 0,
+                'no_urut' => $akun->inisial . '-' . $urutan,
+                'urutan' => $urutan,
+                'admin' => auth()->user()->name,
+            ]);
+
+            $id_akun = 3;
+
+            $max_akun = DB::table('jurnal')->latest('urutan')->where('id_akun', $id_akun)->first();
+            $akun = DB::table('akun')->where('id_akun', $id_akun)->first();
+            $urutan = empty($max_akun) ? '1001' : ($max_akun->urutan == 0 ? '1001' : $max_akun->urutan + 1);
+
+            Jurnal::create([
+                'tgl' => $r->tgl,
+                'id_akun' => $id_akun,
+                'id_buku' => 16,
+                'no_nota' => 'PEM-' . $r->no_nota,
+                'ket' => "Pembelian",
+                'kredit' => $r->rp_satuan[$i],
+                'debit' => 0,
+                'no_urut' => $akun->inisial . '-' . $urutan,
+                'urutan' => $urutan,
+                'admin' => auth()->user()->name,
+            ]);
 
             if (!empty($r->jenis)) {
                 Stok::where([['urutan', $r->urutan], ['id_produk', $r->id_produk[$i]]])->update($data);

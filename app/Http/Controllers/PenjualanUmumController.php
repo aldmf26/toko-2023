@@ -113,29 +113,12 @@ class PenjualanUmumController extends Controller
 
     public function store(Request $r)
     {
-        $nm_customer = DB::table('customer')->where('id_customer', $r->id_customer)->first()->nm_customer;
         $ttlDebit = 0;
 
         for ($i = 0; $i < count($r->akun_pembayaran); $i++) {
             $ttlDebit += $r->debit[$i] ?? 0 - $r->kredit[$i] ?? 0;
         }
-        $max_akun2 = DB::table('jurnal')->latest('urutan')->where('id_akun', $this->akunPenjualan)->first();
-        $akun2 = DB::table('akun')->where('id_akun', $this->akunPenjualan)->first();
-        $urutan2 = empty($max_akun2) ? '1001' : ($max_akun2->urutan == 0 ? '1001' : $max_akun2->urutan + 1);
 
-        $dataK = [
-            'tgl' => $r->tgl,
-            'no_nota' => 'PENUM-' . $r->no_nota,
-            'id_akun' => $this->akunPenjualan,
-            'id_buku' => '10',
-            'ket' => 'PENUM-' . $r->nota_manual,
-            'no_urut' => $akun2->inisial . '-' . $urutan2,
-            'urutan' => $urutan2,
-            'kredit' => $ttlDebit,
-            'debit' => 0,
-            'admin' => auth()->user()->name,
-        ];
-        $penjualan = Jurnal::create($dataK);
 
 
         for ($i = 0; $i < count($r->akun_pembayaran); $i++) {
@@ -148,29 +131,33 @@ class PenjualanUmumController extends Controller
             Jurnal::create([
                 'tgl' => $r->tgl,
                 'id_akun' => $id_akun,
-                'id_buku' => 10,
+                'id_buku' => 15,
                 'no_nota' => 'PENUM-' . $r->no_nota,
-                'ket' => "Penjualan $nm_customer",
-                'debit' => $r->debit[$i] ?? 0,
-                'kredit' => $r->kredit[$i] ?? 0,
+                'ket' => "Penjualan",
+                'debit' => $ttlDebit,
+                'kredit' => 0,
                 'no_urut' => $akun->inisial . '-' . $urutan,
                 'urutan' => $urutan,
                 'admin' => auth()->user()->name,
             ]);
-
-            if ($id_akun == $this->akunPiutangDagang) {
-                DB::table('invoice_agl')->insert([
-                    'no_penjualan' => $r->nota_manual,
-                    'no_nota' => 'PENUM-' . $r->no_nota,
-                    'tgl' => $r->tgl,
-                    'ket' => $r->ket,
-                    'total_rp' => $ttlDebit,
-                    'status' => 'unpaid',
-                    'admin' => auth()->user()->name
-                ]);
-            }
         }
+        $max_akun2 = DB::table('jurnal')->latest('urutan')->where('id_akun', $this->akunPenjualan)->first();
+        $akun2 = DB::table('akun')->where('id_akun', $this->akunPenjualan)->first();
+        $urutan2 = empty($max_akun2) ? '1001' : ($max_akun2->urutan == 0 ? '1001' : $max_akun2->urutan + 1);
 
+        $dataK = [
+            'tgl' => $r->tgl,
+            'no_nota' => 'PENUM-' . $r->no_nota,
+            'id_akun' => $this->akunPenjualan,
+            'id_buku' => '15',
+            'ket' => 'Penjualan',
+            'no_urut' => $akun2->inisial . '-' . $urutan2,
+            'urutan' => $urutan2,
+            'kredit' => $ttlDebit,
+            'debit' => 0,
+            'admin' => auth()->user()->name,
+        ];
+        $penjualan = Jurnal::create($dataK);
         for ($i = 0; $i < count($r->id_produk); $i++) {
             DB::table('penjualan_agl')->insert([
                 'urutan' => $r->no_nota,
@@ -181,15 +168,15 @@ class PenjualanUmumController extends Controller
                 'driver' => '1',
                 'id_produk' => $r->id_produk[$i],
                 'qty' => $r->qty[$i],
-                'rp_satuan' => $r->rp_satuan[$i],
-                'total_rp' => $r->total_rp[$i],
+                'rp_satuan' => $r->rp_satuan[$i] / $r->qty[$i],
+                'total_rp' => $r->rp_satuan[$i],
                 'ket' => $r->ket,
                 'id_jurnal' => $penjualan->id,
                 'admin' => auth()->user()->name
             ]);
             $getProduk = DB::table('tb_stok_produk')->where('id_produk', $r->id_produk[$i])->orderBy('id_stok_produk', 'DESC')->first();
             $notaProduk = buatNota('tb_stok_produk', 'urutan');
-            $jml_sebelumnya = empty($getProduk) ? 0 : $getProduk->jml_sebelumnya ?? 0;
+            $jml_sebelumnya = $getProduk->jml_sebelumnya ?? 0;
             $jml_sesudahnya = $jml_sebelumnya - $r->qty[$i];
 
             DB::table("tb_stok_produk")->insert([

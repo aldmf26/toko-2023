@@ -30,9 +30,6 @@
                             <tr>
                                 <th width="5%" class="dhead">Tanggal</th>
                                 <th width="9%" class="dhead">No Nota</th>
-                                <th width="9%" class="dhead">Nota Manual</th>
-                                <th width="10%" class="dhead">Pelanggan</th>
-                                <th width="15%" class="dhead">Supir</th>
                                 <th width="15%" class="dhead">Keterangan</th>
                             </tr>
                         </thead>
@@ -74,8 +71,7 @@
                             <tr>
                                 <th width="20%" class="dhead">Produk</th>
                                 <th width="5%" class="dhead">Qty</th>
-                                <th width="10%" class="dhead text-end">Harga Satuan</th>
-                                <th width="10%" class="dhead text-end">Total Rp</th>
+                                <th width="10%" class="dhead text-end">Harga Jual</th>
                                 <th width="5%" class="text-center dhead">Aksi</th>
                             </tr>
                         </thead>
@@ -102,12 +98,7 @@
                                     <input type="hidden" class="form-control dikanan setor-hide setor-hide1"
                                         value="" name="rp_satuan[]">
                                 </td>
-                                <td>
-                                    <input readonly type="text" class="form-control dikanan ttlrp-nohide1 text-end"
-                                        value="Rp. 0" count="1">
-                                    <input type="hidden" class="form-control dikanan ttlrp-hide ttlrp-hide1"
-                                        value="" name="total_rp[]">
-                                </td>
+                             
                             </tr>
                         </tbody>
                         <tbody id="tbh_baris">
@@ -138,7 +129,7 @@
                                             id="">
                                             <option value="">- Pilih Akun -</option>
                                             @foreach ($akun as $d)
-                                                <option value="{{ $d->id_akun }}">{{ strtoupper($d->nm_akun) }}
+                                                <option {{$d->id_akun == 3 ? 'selected' : ''}} value="{{ $d->id_akun }}">{{ strtoupper($d->nm_akun) }}
                                                 </option>
                                             @endforeach
                                         </select>
@@ -159,8 +150,8 @@
                                             name="kredit[]">
                                     </td>
                                     <td>
-                                        <button type="button" class="btn rounded-pill tbh_pembayaran"><i
-                                                class="fas fa-plus text-success"></i></button>
+                                        {{-- <button type="button" class="btn rounded-pill tbh_pembayaran"><i
+                                                class="fas fa-plus text-success"></i></button> --}}
                                     </td>
                                 </tr>
                             </tbody>
@@ -186,7 +177,7 @@
             </section>
     </x-slot>
     <x-slot name="cardFooter">
-        <button type="submit" class="float-end btn btn-primary button-save">Simpan</button>
+        <button type="submit" class="float-end btn btn-primary">Simpan</button>
         <button class="float-end btn btn-primary btn_save_loading" type="button" disabled hidden>
             <span class="spinner-border spinner-border-sm " role="status" aria-hidden="true"></span>
             Loading...
@@ -303,7 +294,7 @@
                     $(".kredit").each(function() {
                         total_pbyrKredit += parseFloat($(this).val());
                     });
-                    var selisih = total_debit - (total_pbyrDebit - total_pbyrKredit);
+                    var selisih = total_debit + (total_pbyrDebit - total_pbyrKredit);
 
                     var selisih_total = selisih.toLocaleString("id-ID", {
                         style: "currency",
@@ -318,7 +309,7 @@
                         $(".cselisih").css("color", "red");
                         $(".button-save").attr("hidden", true);
                     }
-                    $(".selisih").text(selisih_total);
+                    // $(".selisih").text(selisih_total);
                 })
             }
 

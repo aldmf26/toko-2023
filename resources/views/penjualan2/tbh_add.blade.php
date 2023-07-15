@@ -11,11 +11,7 @@
         </select>
     </td>
     <td>
-        <input type="text" value="0" readonly class="form-control stok{{$count}}">
-    </td>
-    <td></td>
-    <td>
-        <input name="qty[]" type="text" class="form-control qty qty{{$count}}">
+        <input name="qty[]" value="0" type="text" class="form-control qty qty{{$count}}">
     </td>
     <td>
         <input type="text" class="form-control dikanan setor-nohide text-end"
@@ -24,12 +20,7 @@
             class="form-control dikanan setor-hide setor-hide{{$count}}"
             value="" name="rp_satuan[]">
     </td>
-    <td>
-        <input readonly type="text" class="form-control dikanan ttlrp-nohide{{$count}} text-end"
-            value="Rp. 0" count="{{$count}}">
-        <input type="hidden" class="form-control dikanan ttlrp-hide ttlrp-hide{{$count}}"
-            value="" name="total_rp[]">
-    </td>
+    
     <td align="center">
         <button type="button" class="btn rounded-pill remove_baris" count="{{$count}}"><i
                 class="fas fa-trash text-danger"></i>
